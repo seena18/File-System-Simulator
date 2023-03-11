@@ -1,3 +1,6 @@
+#include "tinyFS.h"
+#include "TinyFS_errno.h"
+#include "libDisk.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -36,10 +39,22 @@ int openDisk(const char *filename, int nBytes){
             disks = reallocd;
         }
         else{
-            return 0;
+            return -1;
         }
     }
-
+    if(nBytes==0){
+        disk = fopen(filename, "rb+");
+        if (disk==NULL){
+            return -1;
+        }
+        else{
+            disks[diskCount]=disk;
+            // fprintf(stderr, "diskCount: %d , disks[diskCount]: %p\n",diskCount,disks[diskCount]);
+            diskCount++;
+            return diskCount-1;
+        }
+    }
+    
     if(nBytes<BLOCKSIZE){
         return -1;
     }
@@ -50,26 +65,32 @@ int openDisk(const char *filename, int nBytes){
     int z =0;
     for (int i = 0; i<nBytes;i++){
         fwrite(&z,1,1,disk);
-        z++;
     }
-    printf("New disk address: %p\n",disk);
     disks[diskCount]=disk;
-    printf("Address at %d: %p\n",diskCount,disks[diskCount]);
     diskCount++;
+    return diskCount-1;
 }
 
 int closeDisk(int disk){
     fclose(disks[disk]);
     disks[disk]=NULL;
-    
+    return 0;
 }
 
 int readBlock(int disk, int bNum, void *block){
+    // fprintf(stderr, "disk: %d , disks[disk]: %p\n",disk,disks[disk]);
     if(disks[disk]==NULL){
         return -1;
     }
-    printf("reading from disk: %d\n",disk);
+    
+    
     FILE* d = disks[disk];
+    fseek(d, 0, SEEK_END);
+    int sz = ftell(d);
+    fseek(d, 0, SEEK_SET);
+    if((bNum+1)*BLOCKSIZE>sz){
+        return -2;
+    }
     fseek(d, bNum*BLOCKSIZE, SEEK_SET);
     fread(block,1,256,d);
     fseek(d, 0, SEEK_SET);
@@ -77,14 +98,12 @@ int readBlock(int disk, int bNum, void *block){
 }
 int writeBlock(int disk, int bNum, const void *block){
     
-    printf("writing to disk: %d\n",disk);
     FILE* d = disks[disk];
     //find file size
     fseek(d, 0, SEEK_END);
     int sz = ftell(d);
     fseek(d, 0, SEEK_SET);
-    printf("FILE SIZE: %d\n",sz);
-    if(bNum*BLOCKSIZE>sz){
+    if((bNum+1)*BLOCKSIZE>sz){
         return -1;
     }
     else{
@@ -93,23 +112,4 @@ int writeBlock(int disk, int bNum, const void *block){
         fseek(d, 0, SEEK_SET);
         return 0;
     }
-}
-int main(){
-    fprintf(stderr,"%d",sizeof(FILE*));
-    void * str = (void*) malloc(BLOCKSIZE);
-    openDisk("./disk",256);
-    openDisk("./disk1",256);
-    readBlock(0,0,str);
-    for (int i=0;i<BLOCKSIZE;i++){
-        printf("%01x\n", ((uint8_t*) str)[i]);
-    }
-    printf("\n");
-    int z [2];
-    z[0]=1;
-    z[1]=5;
-    writeBlock(0,0,&z);
-    readBlock(0,0,str);
-    // for (int i=0;i<BLOCKSIZE;i++){
-    //     printf("%01x\n", ((uint8_t*) str)[i]);
-    // }
 }
