@@ -21,12 +21,15 @@
 #include <sys/sysmacros.h>
 #include <sys/stat.h>
 #include <stdint.h>
-int fss;
 
-int mount = -1;
+
+
 
 /* Implementation of tinyFS filesystem related APIs */
-int tfs_mkfs(const char *filename, size_t nBytes){
+int tfs_mkfs(const char *filename, size_t nBytes){\
+    if(nBytes==0){
+        nBytes=DEFAULT_DISK_SIZE;
+    }
     int fs = openDisk(filename,nBytes);
     if (fs<0){
         return -1;
@@ -37,16 +40,33 @@ int tfs_mkfs(const char *filename, size_t nBytes){
 
     char *ini=(char*)malloc(256*sizeof(char));
     //superblock
-    ini[0]=0x01;
-    ini[1]=0x44;
-    memset(ini+3, 0, 253);
+    ini[0]=0x01;//type
+    ini[1]=0x44;//magic num
+    ini[2]=0x00;//next inode
+    //next free block
+    if(nBytes/BLOCKSIZE==1){
+        ini[3]=0x00;
+    }
+    else{
+        ini[3]=0x01;    
+    }
+    ini[4]=0x00;//tail inode
+    ini[5]=nBytes/BLOCKSIZE;//number of bytes in fs
+    memset(ini+6, 0, 250);
     writeBlock(fs,0,ini);
     //free blocks
-    if(nBytes/BLOCKSIZE>BLOCKSIZE){
+    if(nBytes>BLOCKSIZE){
         ini[0]=0x04;
         ini[1]=0x44;
+        ini[2]=0x02;
+        ini[3]=0x00;
         for (int i = 1;i< nBytes/BLOCKSIZE;i++){
+            if(i==(nBytes/BLOCKSIZE)-1){
+                ini[2]=0x00;
+            }
             writeBlock(fs,i,ini);
+            ini[2]=ini[2]+0x01;
+            
         }
     }
     free(ini);
@@ -55,32 +75,28 @@ int tfs_mkfs(const char *filename, size_t nBytes){
 }
 int tfs_mount(const char *diskname) 
 {
-    if(mount!=-1){
+    if(mounted!=-1){
         return -2;
     }
     char *currblock=(char*)malloc(256*sizeof(char));
     int c = 0;
-    mount=openDisk(diskname,0);
-    int res = readBlock(mount,c++,currblock);
+    mounted=openDisk(diskname,0);
+    int res = readBlock(mounted,c++,currblock);
     while(currblock[1]==0x44 && res == 0){
-        res = readBlock(mount,c++,currblock);
+        res = readBlock(mounted,c++,currblock);
     }
     if(currblock[1]==0x44 && res == -2){
         return 0;
     }
     else{
+        fprintf(stderr,"res :%d\n",res);
+        fprintf(stderr,"currblock :%d\n",currblock[1]);
         return -1;
     }
 
 }
 int tfs_unmount(void){
-    closeDisk(mount);
-    mount = -1;
+    closeDisk(mounted);
+    mounted = -1;
     return 0;
-}
-int main(){
-    tfs_mkfs("disk1.dsk",256);
-    int r = tfs_mount("disk1.dsk");
-    fprintf(stderr,"Mount result: %d\n",r);
-    fprintf(stderr,"Mounted: %d\n",mount);
 }

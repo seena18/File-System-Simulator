@@ -6,9 +6,11 @@
 
 /* This is where you fully exercise the tinyFS library */
 
-int
-main(int argc, char *argv[])
+
+int main(int argc, char *argv[])
 {
-	printf("hello, world\n");
-	return 0;
+	tfs_mkfs("disk1.dsk",1024);
+    int r = tfs_mount("disk1.dsk");
+	tfs_openFile("test");
+    fprintf(stderr,"Mount result: %d\n",r);
 }
