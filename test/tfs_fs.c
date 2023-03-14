@@ -6,7 +6,7 @@
 #include "libDisk.h"
 
 #include "libTinyFS.h"
-#include "tfs_internal.h"
+#include "tfs_file.c"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -27,6 +27,7 @@
 
 /* Implementation of tinyFS filesystem related APIs */
 int tfs_mkfs(const char *filename, size_t nBytes){\
+    
     if(nBytes==0){
         nBytes=DEFAULT_DISK_SIZE;
     }
@@ -51,15 +52,18 @@ int tfs_mkfs(const char *filename, size_t nBytes){\
         ini[3]=0x01;    
     }
     ini[4]=0x00;//tail inode
-    ini[5]=nBytes/BLOCKSIZE;//number of bytes in fs
-    memset(ini+6, 0, 250);
+    ini[5]= (nBytes/BLOCKSIZE)-1;//tail free block
+    ini[6]=nBytes/BLOCKSIZE;//number of blocks in fs
+    ini[7]=(nBytes/BLOCKSIZE)-1; //number of free blocks
     writeBlock(fs,0,ini);
+    memset(ini+8, 0, 248);
     //free blocks
     if(nBytes>BLOCKSIZE){
         ini[0]=0x04;
         ini[1]=0x44;
         ini[2]=0x02;
         ini[3]=0x00;
+        ini[4]=0x00;
         for (int i = 1;i< nBytes/BLOCKSIZE;i++){
             if(i==(nBytes/BLOCKSIZE)-1){
                 ini[2]=0x00;
