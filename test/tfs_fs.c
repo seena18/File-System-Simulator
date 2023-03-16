@@ -56,8 +56,8 @@ int tfs_mkfs(const char *filename, size_t nBytes){\
     ini[6]=nBytes/BLOCKSIZE;//number of blocks in fs
     ini[7]=(nBytes/BLOCKSIZE)-1; //number of free blocks
     writeBlock(fs,0,ini);
-    memset(ini+8, 0, 248);
-    //free blocks
+    memset(ini, 0, 256);
+    //init free blocks
     if(nBytes>BLOCKSIZE){
         ini[0]=0x04;
         ini[1]=0x44;

@@ -46,9 +46,10 @@ fileDescriptor tfs_openFile(const char *name){
         }
     }
     char * currblock = (char*)malloc(256*sizeof(char));
-    readBlock(mounted,0,currblock);
-    char firstfree=currblock[3];
-    char firstinode=currblock[2];
+    char * superblock = (char*)malloc(256*sizeof(char));
+    readBlock(mounted,0,superblock);
+    char firstfree=superblock[3];
+    char firstinode=superblock[2];
     bool found = false;
     if(firstinode!=0){
         while(readBlock(mounted,firstinode,currblock)){
@@ -76,29 +77,31 @@ fileDescriptor tfs_openFile(const char *name){
             currblock[13]=0x01;//size of file
             currblock[14]=0x00;//root data block
             writeBlock(mounted,firstfree,currblock);
-            readBlock(mounted,0,currblock);
+            files[filecount++]=currblock;
+
+            readBlock(mounted,0,superblock);
             //if superblock does not have next inode (no inodes yet)
             //then set the inode
-            if(currblock[2]==0){
-                currblock[2]=firstfree;
+            if(superblock[2]==0){
+                superblock[2]=firstfree;
             }
             //next free block
-            currblock[3]=nextfree;
+            superblock[3]=nextfree;
 
             //set next of tailnode
-            if(currblock[4]!=0x00){
+            if(superblock[4]!=0x00){
                 char * tailinode = (char*)malloc(256*sizeof(char));
-                readBlock(mounted,currblock[4],tailinode);
+                readBlock(mounted,superblock[4],tailinode);
                 tailinode[2]=firstfree;
-                writeBlock(mounted,currblock[4],tailinode);
+                writeBlock(mounted,superblock[4],tailinode);
                 free(tailinode);
             }
             
             //update superblock's tailnode
-            currblock[4]=firstfree;
-            currblock[7]-=0x01;
-            writeBlock(mounted,0,currblock);
-            files[filecount++]=currblock;
+            superblock[4]=firstfree;
+            superblock[7]-=0x01;
+            writeBlock(mounted,0,superblock);
+            
         }
     }
     return filecount-1;
@@ -112,6 +115,7 @@ int tfs_writeFile(fileDescriptor fd, const char *buffer, size_t size){
     char * superblock = (char*)malloc(256*sizeof(char));
     readBlock(mounted,0,superblock);
     char * currnode=files[fd];
+    fprintf(stderr,"test: %d",currnode[3]);
     if(superblock[7]+currnode[13]<strlen(buffer)/(BLOCKSIZE-4)){
         fprintf(stderr,"Not enough space in disk");
         free(superblock);
@@ -179,7 +183,7 @@ int tfs_writeFile(fileDescriptor fd, const char *buffer, size_t size){
     superblock[3]=nextfree;
     writeBlock(mounted,0,superblock);
     fprintf(stderr,"test: %d",currnode[3]);
-
+    writeBlock(mounted,0,superblock);
     free(superblock);
     free(currdata);
     free(lastfree);
