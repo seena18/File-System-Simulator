@@ -23,11 +23,14 @@ extern int tfs_seek(fileDescriptor fd, off_t offset);
 /* Various well-defined extensions */
 
 extern int tfs_rename(fileDescriptor fd, const char *newName);
+extern void tfs_readdir();
+
+
 
 extern int tfs_createDir(const char *dirName);
 extern int tfs_removeDir(const char *dirName);
 extern int tfs_removeAll(const char *dirName);
-
+extern int tfs_readFileInfo(fileDescriptor FD);
 extern int tfs_makeRO(const char *name);
 extern int tfs_makeRW(const char *name);
 
