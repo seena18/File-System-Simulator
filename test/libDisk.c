@@ -47,7 +47,7 @@ int openDisk(const char *filename, int nBytes){
         disk = fopen(filename, "rb+");
         // file error
         if (disk==NULL){
-            return ENOFIL;
+            return ENODSK;
         }
         else{
             disks[diskCount]=disk;
