@@ -33,7 +33,7 @@ int tfs_mkfs(const char *filename, size_t nBytes){\
     }
     int fs = openDisk(filename,nBytes);
     if (fs<0){
-        return -1;
+        return fs;
     }
     if(nBytes%BLOCKSIZE!=0){
         nBytes=nBytes-nBytes%BLOCKSIZE;
@@ -80,7 +80,7 @@ int tfs_mkfs(const char *filename, size_t nBytes){\
 int tfs_mount(const char *diskname) 
 {
     if(mounted!=-1){
-        return -2;
+        return EFSMT;
     }
     char *currblock=(char*)malloc(256*sizeof(char));
     int c = 0;
@@ -95,7 +95,7 @@ int tfs_mount(const char *diskname)
     else{
         fprintf(stderr,"res :%d\n",res);
         fprintf(stderr,"currblock :%d\n",currblock[1]);
-        return -1;
+        return EFSIV;
     }
 
 }

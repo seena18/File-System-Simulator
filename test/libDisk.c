@@ -39,13 +39,15 @@ int openDisk(const char *filename, int nBytes){
             disks = reallocd;
         }
         else{
-            return -1;
+            // allocation error
+            return EALLOC;
         }
     }
     if(nBytes==0){
         disk = fopen(filename, "rb+");
+        // file error
         if (disk==NULL){
-            return -1;
+            return ENOFIL;
         }
         else{
             disks[diskCount]=disk;
@@ -54,9 +56,9 @@ int openDisk(const char *filename, int nBytes){
             return diskCount-1;
         }
     }
-    
+    // block must be at least size 1
     if(nBytes<BLOCKSIZE){
-        return -1;
+        return EBLKSZ;
     }
     if(nBytes%BLOCKSIZE!=0){
         nBytes=nBytes-nBytes%BLOCKSIZE;
@@ -80,7 +82,7 @@ int closeDisk(int disk){
 int readBlock(int disk, int bNum, void *block){
     // fprintf(stderr, "disk: %d , disks[disk]: %p\n",disk,disks[disk]);
     if(disks[disk]==NULL){
-        return -1;
+        return EDSKOP;
     }
     
     
@@ -88,8 +90,9 @@ int readBlock(int disk, int bNum, void *block){
     fseek(d, 0, SEEK_END);
     int sz = ftell(d);
     fseek(d, 0, SEEK_SET);
+    // out of disk bounds
     if((bNum+1)*BLOCKSIZE>sz){
-        return -2;
+        return EDSKBD;
     }
     fseek(d, bNum*BLOCKSIZE, SEEK_SET);
     fread(block,1,256,d);
@@ -99,12 +102,14 @@ int readBlock(int disk, int bNum, void *block){
 int writeBlock(int disk, int bNum, const void *block){
     
     FILE* d = disks[disk];
-    //find file size
+    // find file size
     fseek(d, 0, SEEK_END);
     int sz = ftell(d);
     fseek(d, 0, SEEK_SET);
+
     if((bNum+1)*BLOCKSIZE>sz){
-        return -1;
+        // out of disk bounds
+        return EDSKBD;
     }
     else{
         fseek(d, bNum*BLOCKSIZE, SEEK_SET);

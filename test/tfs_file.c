@@ -39,9 +39,11 @@ void printBlock(unsigned char * b){
 }
 fileDescriptor tfs_openFile(const char *name){
     gettimeofday(&tv,NULL);
+
+    // file name too long
     if(strlen(name)>8){
         fprintf(stderr,"Error filename too big");
-        return -1;
+        return EFILNM;
     }
     if(filecount==0){
         files = (void *)malloc( sizeof(unsigned char*));
@@ -54,7 +56,8 @@ fileDescriptor tfs_openFile(const char *name){
             files = reallocf;
         }
         else{
-            return -1;
+            // allocation error
+            return EALLOC;
         }
     }
     char * currblock = (char*)malloc(256*sizeof(char));
@@ -149,18 +152,18 @@ int tfs_writeFile(fileDescriptor fd, const char *buffer, size_t size){
     unsigned char * superblock = (unsigned char*)malloc(256*sizeof(char));
     readBlock(mounted,0,superblock);
     if(fd>filecount || fd<0){
-        return -1;
+        return EFILOP;
 
     }
     unsigned char * currnode=files[fd];
     if(currnode==NULL || fd>filecount || fd<0){
-        return -1;
+        return EFILOP;
     }
 
     if(superblock[7]+currnode[13]<strlen(buffer)/(BLOCKSIZE-4)){
         fprintf(stderr,"Not enough space in disk");
         free(superblock);
-        return -1;
+        return EDSKBD;
     }
     currnode[15]=0x00; // set file ptr to zero
 
@@ -362,12 +365,12 @@ int tfs_readByte(fileDescriptor FD, char *buffer){
         gettimeofday(&tv,NULL);
 
     if(FD>filecount || FD<0){
-        return -1;
+        return EFILOP;
 
     }
     unsigned char * r = files[FD];
     if(r==NULL){
-        return -1;
+        return EFILOP;
     }
     int ptr=r[15];
     int block= r[16];
@@ -393,12 +396,12 @@ int tfs_readByte(fileDescriptor FD, char *buffer){
 
 int tfs_seek(fileDescriptor fd, off_t offset){
     if (fd>filecount || fd<0 || offset<0) {
-        return -1;
+        return EFILOP;
 
     }
     unsigned char * r = files[fd];
     if ( r==NULL || offset>((r[13]-1)*252)-1 ) {
-        return -1;
+        return EFILOP;
     }
     unsigned int o = offset;
     r[15]=o%252;
@@ -420,16 +423,16 @@ int tfs_rename(fileDescriptor fd, const char * name){
     gettimeofday(&tv,NULL);
 
     if(strlen(name)>8){
-        return -1;//error if name larger than 8
+        return EFILNM;//error if name larger than 8
     }
     if (fd>filecount || fd<0) {
-        return -1;
+        return EFILNM;
         //error if file descriptor not valid
 
     }
     unsigned char * r = files[fd];
     if ( r==NULL) {
-        return -1; //error if file descriptor not valid
+        return EFILOP; //error if file descriptor not valid
     }
 
     for(int i =0;i<filecount;i++){
@@ -475,13 +478,13 @@ void tfs_readdir(){
 
 int tfs_readFileInfo(fileDescriptor FD){
     if (FD>filecount || FD<0) {
-        return -1;
+        return EFILOP;
         //error if file descriptor not valid
 
     }
     unsigned char * r = files[FD];
     if ( r==NULL) {
-        return -1; //error if file descriptor not valid
+        return EFILOP; //error if file descriptor not valid
     }
     int c;
     memcpy(&c,(r+16),8);
