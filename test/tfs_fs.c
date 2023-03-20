@@ -122,7 +122,8 @@ int tfs_unmount(void){
         fprintf(stderr, "No file system to unmount.\n");
         return EFSNMT;
     }
-
+    free(files);
+    free(offset_table);
     closeDisk(mounted);
     mounted = -1;
     fprintf(stderr, "File system unmounted.\n");

@@ -22,15 +22,10 @@
 #include <sys/sysmacros.h>
 #include <sys/stat.h>
 #include <stdint.h>
+#include <ctype.h>
 
 /* Implementation of tinyFS file related APIs */
-int filecount=0;
-unsigned char** files;
 
-struct timeval tv;
-
-
-    
 
 void printBlock(unsigned char * b){
     for(int j = 0; j<256;j++){
@@ -40,26 +35,37 @@ void printBlock(unsigned char * b){
 fileDescriptor tfs_openFile(const char *name){
     gettimeofday(&tv,NULL);
 
-    // file name too long
+    // file name empty or too long
     if(strlen(name)>8 || strlen(name) < 1){
         fprintf(stderr,"Error: file name must be between 1-8 characters long.\n");
         return EFILNM;
     }
+    // file name not alphanumeric
+    for(int i = 0; i < strlen(name); i++) {
+        if(!isalnum(name[i])){
+            fprintf(stderr, "File name must contain alphanumeric characters.\n");
+            return EFILNM;
+        }
+    }
+
     if(filecount==0){
         files = (void *)malloc( sizeof(unsigned char*));
-        
+        offset_table = (int *)malloc(sizeof(int));
     }
     else{
         unsigned char** reallocf = realloc(files, (filecount+1) * sizeof(unsigned char*));
-        if (reallocf)
+        int* realloc_offset = realloc(offset_table, (filecount+1) * sizeof(int));
+        if (reallocf && realloc_offset)
         {
             files = reallocf;
+            offset_table = realloc_offset;
         }
         else{
             // allocation error
             return EALLOC;
-        }
+        } 
     }
+
     char * currblock = (char*)malloc(256*sizeof(char));
     unsigned char * superblock = (unsigned char*)malloc(256*sizeof(char));
     readBlock(mounted,0,superblock);
@@ -103,7 +109,6 @@ fileDescriptor tfs_openFile(const char *name){
             strcpy((currblock+4),name);//filename start
             currblock[13]=0x01;//size of file
             currblock[14]=0x00;//root data block
-            currblock[15]=0x00;//file ptr
             memcpy((currblock+16),(void *) &(tv.tv_sec),8);//creation time
             memcpy((currblock+24),(void *) &(tv.tv_sec),8);//access time
             memcpy((currblock+32),(void *) &(tv.tv_sec),8);//modify time
@@ -139,15 +144,19 @@ fileDescriptor tfs_openFile(const char *name){
             
         }
     }
+
+    offset_table[filecount - 1] = 0;
     return filecount-1;
 }
 int tfs_closeFile(fileDescriptor fd){
     free(files[fd]);
     files[fd]=NULL;
+    offset_table[fd]=-1;
     return 0;
 }
 int tfs_writeFile(fileDescriptor fd, const char *buffer, size_t size){
-        gettimeofday(&tv,NULL);
+
+    gettimeofday(&tv,NULL);
 
     unsigned char * superblock = (unsigned char*)malloc(256*sizeof(char));
     readBlock(mounted,0,superblock);
@@ -165,7 +174,7 @@ int tfs_writeFile(fileDescriptor fd, const char *buffer, size_t size){
         free(superblock);
         return EDSKBD;
     }
-    currnode[15]=0x00; // set file ptr to zero
+    offset_table[fd]=0x00; // set file ptr to zero
 
     
     char rootdata = currnode[14];//root data block of the inode
@@ -179,7 +188,7 @@ int tfs_writeFile(fileDescriptor fd, const char *buffer, size_t size){
         if(superblock[3]==0){
             superblock[3]=rootdata;
         }
-        
+
     while(readBlock(mounted,rootdata,currdata)==0){
         
         superblock[7]+=0x01;
@@ -201,7 +210,6 @@ int tfs_writeFile(fileDescriptor fd, const char *buffer, size_t size){
         }
     }
     superblock[5]=newtail;
-    
     
     } 
 
@@ -252,13 +260,12 @@ int tfs_writeFile(fileDescriptor fd, const char *buffer, size_t size){
     superblock[3]=nextfree;
     }
     
-    
     writeBlock(mounted,0,superblock);
     memcpy((currnode+32),(void *) &(tv.tv_sec),8);//modify time
     writeBlock(mounted,currnode[3],currnode);
-    free(superblock);
-    free(currdata);
-    free(lastfree);
+    // free(superblock);
+    // free(currdata);
+    // free(lastfree);
     return 0;
 }
 int tfs_deleteFile(fileDescriptor fd){
@@ -269,12 +276,12 @@ int tfs_deleteFile(fileDescriptor fd){
     
     char newtail=freetail;
     if(fd>filecount || fd<0){
-        return -1;
+        return EFDIV;
 
     }
     unsigned char * del = files[fd];
     if(del==NULL || fd>filecount || fd<0){
-        return -1;
+        return EFDIV;
     }
     unsigned char * currdata = (unsigned char*)malloc(256*sizeof(char));
     char rootdata=del[14];
@@ -323,7 +330,6 @@ int tfs_deleteFile(fileDescriptor fd){
         if(files[j]!=NULL && files[j][2]==del[3]){
             prev=files[j];
         }
-
     }
 
     prev[2]=del[2];
@@ -354,15 +360,15 @@ int tfs_deleteFile(fileDescriptor fd){
     free(superblock);
     free(del);
     files[fd]=NULL;
-    
-    
+    offset_table[fd]=-1;
     
     return 0;
-    
-
 }
+
 int tfs_readByte(fileDescriptor fd, char *buffer){
-        gettimeofday(&tv,NULL);
+
+    
+    gettimeofday(&tv,NULL);
 
     if(fd>filecount || fd<0){
         return EFILOP;
@@ -372,23 +378,32 @@ int tfs_readByte(fileDescriptor fd, char *buffer){
     if(r==NULL){
         return EFILOP;
     }
-    int ptr=r[15];
-    int block= r[16];
+    fprintf(stderr, "offset_table[fd]: %d\n", offset_table[fd]);
+    fprintf(stderr, "max size: %d\n", 252*(r[13]-1) - 1);
+    if(offset_table[fd] > 252*(r[13]-1) - 1){
+        return EEOF;
+    }
+    int block_offset=offset_table[fd]%252;
+    int n_data_block = (offset_table[fd]/252)+1;
+    int block_addr = 0;
+    char addr=r[14];   
     char * datablock = (char* )malloc(sizeof(char)*256);
-    fprintf(stderr,"\n ptr: %d block: %d",ptr+4,block);
+    while(addr!=0 && readBlock(mounted,addr,datablock)==0){
+        n_data_block-=1;
+        if(n_data_block==0){
+            block_addr=addr;
+        }
+        addr=datablock[2];
+    }
+
+    int ptr=block_offset;
+    int block = block_addr;
+    //fprintf(stderr,"\n ptr: %d block: %d",ptr+4,block);
     readBlock(mounted,block,datablock);
     *buffer=datablock[ptr+4];
     
-    r[15]+=1;
-    if(r[15]==252){
-        r[15]=0;
-        if(datablock[2]==0x00){
-            r[16]=0;
-        }
-        else{
-            r[16]=datablock[2];
-        }
-    }
+    offset_table[fd]+=1;
+
     memcpy((r+24),(void *) &(tv.tv_sec),8);//access time
     free(datablock);
     return 0;
@@ -400,31 +415,31 @@ int tfs_seek(fileDescriptor fd, off_t offset){
 
     }
     unsigned char * r = files[fd];
-    if ( r==NULL || offset>((r[13]-1)*252)-1 ) {
+    if (r==NULL) {
         return EFILOP;
     }
-    unsigned int o = offset;
-    r[15]=o%252;
-    int n = (o/252)+1;
-    char addr=r[14];   
-    char * datablock = (char* )malloc(sizeof(char)*256);
-    while(addr!=0 && readBlock(mounted,addr,datablock)==0){
-        n-=1;
-        if(n==0){
-            r[16]=addr;
-        }
-        addr=datablock[2];
-    }
+    offset_table[fd]=offset;
 
-    writeBlock(mounted,r[3],r);
     return 0;
 }
+
 int tfs_rename(fileDescriptor fd, const char * name){
+
     gettimeofday(&tv,NULL);
 
-    if(strlen(name)>8){
-        return EFILNM;//error if name larger than 8
+        // file name empty or too long
+    if(strlen(name)>8 || strlen(name) < 1){
+        fprintf(stderr,"Error: file name must be between 1-8 characters long.\n");
+        return EFILNM;
     }
+    // file name not alphanumeric
+    for(int i = 0; i < strlen(name); i++) {
+        if(!isalnum(name[i])){
+            fprintf(stderr, "File name must contain alphanumeric characters.\n");
+            return EFILNM;
+        }
+    }
+
     if (fd>filecount || fd<0) {
         return EFILNM;
         //error if file descriptor not valid

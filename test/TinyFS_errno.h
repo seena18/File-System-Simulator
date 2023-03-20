@@ -32,7 +32,8 @@
 #define EFSIV -13
 /* File not mounted*/
 #define EFSNMT -14
-
+/* Invalid file descriptor */
+#define EFDIV -15
 
 
 
