@@ -41,8 +41,8 @@ fileDescriptor tfs_openFile(const char *name){
     gettimeofday(&tv,NULL);
 
     // file name too long
-    if(strlen(name)>8){
-        fprintf(stderr,"Error filename too big");
+    if(strlen(name)>8 || strlen(name) < 1){
+        fprintf(stderr,"Error: file name must be between 1-8 characters long.\n");
         return EFILNM;
     }
     if(filecount==0){
@@ -261,19 +261,19 @@ int tfs_writeFile(fileDescriptor fd, const char *buffer, size_t size){
     free(lastfree);
     return 0;
 }
-int tfs_deleteFile(fileDescriptor FD){
+int tfs_deleteFile(fileDescriptor fd){
     unsigned char * superblock =(unsigned char*)malloc(256*sizeof(char));
     readBlock(mounted,0,superblock);
     char freetail=superblock[5];
     unsigned char * lastfree =(unsigned char*)malloc(256*sizeof(char));
     
     char newtail=freetail;
-    if(FD>filecount || FD<0){
+    if(fd>filecount || fd<0){
         return -1;
 
     }
-    unsigned char * del = files[FD];
-    if(del==NULL || FD>filecount || FD<0){
+    unsigned char * del = files[fd];
+    if(del==NULL || fd>filecount || fd<0){
         return -1;
     }
     unsigned char * currdata = (unsigned char*)malloc(256*sizeof(char));
@@ -353,7 +353,7 @@ int tfs_deleteFile(fileDescriptor FD){
     writeBlock(mounted,0,superblock);
     free(superblock);
     free(del);
-    files[FD]=NULL;
+    files[fd]=NULL;
     
     
     
@@ -361,14 +361,14 @@ int tfs_deleteFile(fileDescriptor FD){
     
 
 }
-int tfs_readByte(fileDescriptor FD, char *buffer){
+int tfs_readByte(fileDescriptor fd, char *buffer){
         gettimeofday(&tv,NULL);
 
-    if(FD>filecount || FD<0){
+    if(fd>filecount || fd<0){
         return EFILOP;
 
     }
-    unsigned char * r = files[FD];
+    unsigned char * r = files[fd];
     if(r==NULL){
         return EFILOP;
     }
@@ -476,13 +476,13 @@ void tfs_readdir(){
     
 }
 
-int tfs_readFileInfo(fileDescriptor FD){
-    if (FD>filecount || FD<0) {
+int tfs_readFileInfo(fileDescriptor fd){
+    if (fd>filecount || fd<0) {
         return EFILOP;
         //error if file descriptor not valid
 
     }
-    unsigned char * r = files[FD];
+    unsigned char * r = files[fd];
     if ( r==NULL) {
         return EFILOP; //error if file descriptor not valid
     }

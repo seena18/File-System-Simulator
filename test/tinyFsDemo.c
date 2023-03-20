@@ -9,8 +9,16 @@
 
 int main(int argc, char *argv[])
 {
-	tfs_mkfs("disk1.dsk",2048);
-    tfs_mount("disk1.dsk");
+	
+    if(tfs_mount("disk1.dsk") < 0){
+		tfs_mkfs("disk1.dsk",2048);
+		int val;
+		if((val = tfs_mount("disk1.dsk")) < 0) {
+			fprintf(stderr, "Failed to open disk\n");
+			fprintf(stderr, "error val: %d", val);
+			return val;
+		}
+	}
 	fileDescriptor fd1 = tfs_openFile("one");
 	fileDescriptor fd2 = tfs_openFile("two");
 	fileDescriptor fd3 = tfs_openFile("three");
@@ -20,6 +28,7 @@ int main(int argc, char *argv[])
 	tfs_readdir();
 	tfs_rename(fd3,"four"); 
 	tfs_readdir();
-	
     fprintf(stderr,"Creation date: %d\n",tfs_readFileInfo(fd1));
+	tfs_unmount();
+	
 }

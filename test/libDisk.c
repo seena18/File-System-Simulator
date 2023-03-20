@@ -67,7 +67,7 @@ int openDisk(const char *filename, int nBytes){
     int z =0;
     for (int i = 0; i<nBytes;i++){
         fwrite(&z,1,1,disk);
-    }
+    }   
     disks[diskCount]=disk;
     diskCount++;
     return diskCount-1;
@@ -81,6 +81,7 @@ int closeDisk(int disk){
 
 int readBlock(int disk, int bNum, void *block){
     // fprintf(stderr, "disk: %d , disks[disk]: %p\n",disk,disks[disk]);
+    // disk is not opened
     if(disks[disk]==NULL){
         return EDSKOP;
     }

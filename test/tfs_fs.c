@@ -27,10 +27,11 @@
 
 /* Implementation of tinyFS filesystem related APIs */
 int tfs_mkfs(const char *filename, size_t nBytes){\
-    
+    fprintf(stderr, "Creating file system...\n");
     if(nBytes==0){
         nBytes=DEFAULT_DISK_SIZE;
     }
+    
     int fs = openDisk(filename,nBytes);
     if (fs<0){
         return fs;
@@ -75,32 +76,55 @@ int tfs_mkfs(const char *filename, size_t nBytes){\
     }
     free(ini);
     closeDisk(fs);
+    fprintf(stderr, "File system created.\n");
     return 0;
 }
 int tfs_mount(const char *diskname) 
 {
-    if(mounted!=-1){
+    fprintf(stderr, "Mounting file system...\n");
+    // if already mounted
+    if(mounted >= 0){
+        fprintf(stderr, "File system already mounted.\n");
         return EFSMT;
     }
+    
     char *currblock=(char*)malloc(256*sizeof(char));
     int c = 0;
     mounted=openDisk(diskname,0);
+    if(mounted < 0) {
+        fprintf(stderr, "Unable to mount. Reason: Disk error.\n");
+        return mounted;
+    }
+    
     int res = readBlock(mounted,c++,currblock);
+
+    // check magic number
     while(currblock[1]==0x44 && res == 0){
         res = readBlock(mounted,c++,currblock);
     }
-    if(currblock[1]==0x44 && res == -2){
+    if(currblock[1]==0x44 && res == EDSKBD){
+        fprintf(stderr, "Mounted.\n");
         return 0;
     }
     else{
-        fprintf(stderr,"res :%d\n",res);
-        fprintf(stderr,"currblock :%d\n",currblock[1]);
-        return EFSIV;
+        // invalid file system
+        fprintf(stderr, "Unable to mount. Reason: Invalid file system format.\n");
+        mounted = EFSIV;
+        return mounted;
     }
 
 }
+
 int tfs_unmount(void){
+    fprintf(stderr, "Unmounting file system...\n");
+    // if not mounted
+    if (mounted < 0) {
+        fprintf(stderr, "No file system to unmount.\n");
+        return EFSNMT;
+    }
+
     closeDisk(mounted);
     mounted = -1;
+    fprintf(stderr, "File system unmounted.\n");
     return 0;
 }
